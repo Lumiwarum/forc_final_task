@@ -88,7 +88,8 @@ pin.forwardKinematics(model, data, q, dq, ddq)
 ee_frame_id = model.getFrameId("wrist_3_link")
 print(f"\nEnd-effector frame ID: {ee_frame_id}")
 
-frame = pin.LOCAL
+frame = pin.pin.LOCAL_WORLD_ALIGNED
+print(f"Frame chechking:{data.oMf[frame]}")
 # Calculate kinematics of frames 
 pin.updateFramePlacement(model, data, ee_frame_id)
 
@@ -112,6 +113,9 @@ desired_twist = ee_pose.actInv(pin.Motion(desired_velocity))
 # Working with rotations and logarithms
 pos_quat = pin.SE3ToXYZQUAT(ee_pose)
 log_R = pin.log3(ee_rotation)
+
+#print(pin.XYZQUATToSE3(pos_quat))
+#print(pos_quat[:3])
 
 # Print results
 print("\nEnd-Effector State:")

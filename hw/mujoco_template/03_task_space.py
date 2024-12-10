@@ -22,20 +22,44 @@ Notes:
 """
 
 import numpy as np
+from scipy.linalg import logm
 from simulator import Simulator
 from pathlib import Path
 from typing import Dict
 import os 
 import pinocchio as pin
 
+def skew_to_vector(skew_matrix):
+    return np.array([skew_matrix[2, 1], skew_matrix[0, 2], skew_matrix[1, 0]])
+
+def calc_error(pos, R, pos_des, R_des):
+    error_matrix = R.T @ R_des
+    error_log = logm(error_matrix)
+    error_twist = skew_to_vector(error_log)
+    error_pos = pos_des - pos
+    error = np.concatenate([error_pos, error_twist])
+    return error
+
+def jacobians(model, data, q, dq):
+    ee_frame_id = model.getFrameId("end_effector")
+    J = np.zeros((6, 6))
+    dJdq = np.zeros((6))
+    J[:3,:] = pin.getFrameJacobian(model, data, ee_frame_id, pin.LOCAL_WORLD_ALIGNED)[:3,:]
+    J[3:, :] = pin.getFrameJacobian(model, data, ee_frame_id, pin.LOCAL)[3:, :]
+
+    ddq = np.array([0., 0., 0., 0., 0., 0.])
+    pin.forwardKinematics(model, data, q, dq, ddq)
+    dJdq[:3] = pin.getFrameAcceleration(model, data, ee_frame_id, pin.LOCAL_WORLD_ALIGNED).linear
+    dJdq[3:] = pin.getFrameAcceleration(model, data, ee_frame_id, pin.LOCAL).angular
+    return J, dJdq
+
 def task_space_controller(q: np.ndarray, dq: np.ndarray, t: float, desired: Dict) -> np.ndarray:
     """Example task space controller."""
-    
-    
+    #compute everything
+    pin.computeAllTerms(model, data, q, dq)
+
     kp = np.array([1000, 1000, 1000, 10, 10, 0.1])
     kd = np.array([200, 200, 200, 2, 2, 0.01])
-    q0 = np.array([0.0, -1.3, 1., 0, 0, 0])
-    tau = kp * (q0 - q) - kd * dq
     
     # Convert desired pose to SE3
     desired_position = desired['pos']
@@ -44,11 +68,30 @@ def task_space_controller(q: np.ndarray, dq: np.ndarray, t: float, desired: Dict
     # Convert to pose and SE3
     desired_pose = np.concatenate([desired_position, desired_quaternion_pin])
     desired_se3 = pin.XYZQUATToSE3(desired_pose)
-    print(desired_se3)
+    desired_position = desired_se3.translation
+    desired_rotation = desired_se3.rotation
+    
     # Get end-effector frame
     ee_frame_id = model.getFrameId("end_effector")
+    ee_pose = data.oMf[ee_frame_id]
+    ee_position = ee_pose.translation
+    ee_rotation = ee_pose.rotation
+    error_full = calc_error(ee_position, ee_rotation, desired_position, desired_rotation) 
     
-    return tau
+    pin.updateFramePlacement(model, data, ee_frame_id)
+    M = data.M
+    nle = data.nle
+    J, dJdq = jacobians(model, data, q, dq)
+    J_inv = np.linalg.inv(J)
+
+    dp_e = -J@dq
+
+    inner_loop =  (kp * error_full + kd * dp_e - dJdq)
+    print(inner_loop)
+
+    u = M @ J_inv @ (inner_loop) + nle
+    
+    return u
 
 def main():
     # Create logging directories
