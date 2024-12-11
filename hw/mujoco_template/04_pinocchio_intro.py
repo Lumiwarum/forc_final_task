@@ -116,7 +116,7 @@ log_R = pin.log3(ee_rotation)
 
 #print(pin.XYZQUATToSE3(pos_quat))
 #print(pos_quat[:3])
-
+print(ee_pose)
 # Print results
 print("\nEnd-Effector State:")
 print(f"Position: {ee_position}")

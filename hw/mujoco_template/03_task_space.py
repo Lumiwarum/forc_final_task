@@ -23,19 +23,18 @@ Notes:
 
 import numpy as np
 from scipy.linalg import logm
-from simulator import Simulator
+from simulator import Simulator, plotter
 from pathlib import Path
 from typing import Dict
 import os 
 import pinocchio as pin
 
+
 def skew_to_vector(skew_matrix):
     return np.array([skew_matrix[2, 1], skew_matrix[0, 2], skew_matrix[1, 0]])
 
 def calc_error(pos, R, pos_des, R_des):
-    error_matrix = R.T @ R_des
-    error_log = logm(error_matrix)
-    error_twist = skew_to_vector(error_log)
+    error_twist = pin.log3(R_des @ R.T)
     error_pos = pos_des - pos
     error = np.concatenate([error_pos, error_twist])
     return error
@@ -53,13 +52,18 @@ def jacobians(model, data, q, dq):
     dJdq[3:] = pin.getFrameAcceleration(model, data, ee_frame_id, pin.LOCAL).angular
     return J, dJdq
 
+def get_desired(t):
+    pos = np.array([np.sin(np.pi/2*t), np.cos(np.pi/2*t), 1])
+    rot = np.eye(3)
+    return pos, rot
+
 def task_space_controller(q: np.ndarray, dq: np.ndarray, t: float, desired: Dict) -> np.ndarray:
     """Example task space controller."""
     #compute everything
     pin.computeAllTerms(model, data, q, dq)
 
-    kp = np.array([1000, 1000, 1000, 10, 10, 0.1])
-    kd = np.array([200, 200, 200, 2, 2, 0.01])
+    kp = np.array([100, 100, 100, 10, 10, 10])
+    kd = np.array([20, 20, 20, 2, 2, 2])
     
     # Convert desired pose to SE3
     desired_position = desired['pos']
@@ -70,6 +74,7 @@ def task_space_controller(q: np.ndarray, dq: np.ndarray, t: float, desired: Dict
     desired_se3 = pin.XYZQUATToSE3(desired_pose)
     desired_position = desired_se3.translation
     desired_rotation = desired_se3.rotation
+    #desired_position, desired_rotation = get_desired(t)
     
     # Get end-effector frame
     ee_frame_id = model.getFrameId("end_effector")
@@ -87,9 +92,10 @@ def task_space_controller(q: np.ndarray, dq: np.ndarray, t: float, desired: Dict
     dp_e = -J@dq
 
     inner_loop =  (kp * error_full + kd * dp_e - dJdq)
-    print(inner_loop)
 
     u = M @ J_inv @ (inner_loop) + nle
+
+    ploter.add_data(q, dq, t, u, error_full, dp_e)
     
     return u
 
@@ -109,11 +115,13 @@ def main():
         height=1080
     )
     sim.set_controller(task_space_controller)
-    sim.run(time_limit=10.0)
+    sim.run(time_limit=6.0)
+
 
 if __name__ == "__main__":
     current_dir = os.path.dirname(os.path.abspath(__file__))
     xml_path = os.path.join(current_dir, "robots/universal_robots_ur5e/ur5e.xml")
     model = pin.buildModelFromMJCF(xml_path)
     data = model.createData()
+    ploter = plotter.Plotter(data, model)
     main() 
