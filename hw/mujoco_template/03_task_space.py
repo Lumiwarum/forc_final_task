@@ -44,12 +44,12 @@ def jacobians(model, data, q, dq):
     J = np.zeros((6, 6))
     dJdq = np.zeros((6))
     J[:3,:] = pin.getFrameJacobian(model, data, ee_frame_id, pin.LOCAL_WORLD_ALIGNED)[:3,:]
-    J[3:, :] = pin.getFrameJacobian(model, data, ee_frame_id, pin.LOCAL)[3:, :]
+    J[3:, :] = pin.getFrameJacobian(model, data, ee_frame_id, pin.WORLD)[3:, :]
 
     ddq = np.array([0., 0., 0., 0., 0., 0.])
     pin.forwardKinematics(model, data, q, dq, ddq)
     dJdq[:3] = pin.getFrameAcceleration(model, data, ee_frame_id, pin.LOCAL_WORLD_ALIGNED).linear
-    dJdq[3:] = pin.getFrameAcceleration(model, data, ee_frame_id, pin.LOCAL).angular
+    dJdq[3:] = pin.getFrameAcceleration(model, data, ee_frame_id, pin.WORLD).angular
     return J, dJdq
 
 def get_desired(t):
@@ -87,7 +87,7 @@ def task_space_controller(q: np.ndarray, dq: np.ndarray, t: float, desired: Dict
     M = data.M
     nle = data.nle
     J, dJdq = jacobians(model, data, q, dq)
-    J_inv = np.linalg.inv(J)
+    J_inv = np.linalg.pinv(J)
 
     dp_e = -J@dq
 
@@ -123,5 +123,5 @@ if __name__ == "__main__":
     xml_path = os.path.join(current_dir, "robots/universal_robots_ur5e/ur5e.xml")
     model = pin.buildModelFromMJCF(xml_path)
     data = model.createData()
-    ploter = plotter.Plotter(data, model)
+    ploter = plotter.Plotter("3", model)
     main() 

@@ -12,10 +12,11 @@ class Plotter():
             cls._instance._initialized = False
         return cls._instance
         
-    def __init__(self, data, model):
+    def __init__(self, task_id, model):
         if self._initialized:
             return
         self.nq = model.nq
+        self.task_id = task_id
         self.times = []
         self.joint_pos = {i: [] for i in range(model.nq)}
         self.joint_vel = {i: [] for i in range(model.nv)}
@@ -66,5 +67,5 @@ class Plotter():
         plt.title(title.replace("_", " ")+' over Time')
         plt.legend()
         plt.grid(True)
-        plt.savefig(f'logs/plots/03_{title}.png')
+        plt.savefig(f'logs/plots/0{self.task_id}_{title}.png')
         plt.close()
