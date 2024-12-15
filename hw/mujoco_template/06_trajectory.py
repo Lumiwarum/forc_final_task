@@ -52,11 +52,11 @@ def jacobians(model, data, q, dq):
     dJdq[3:] = pin.getFrameAcceleration(model, data, ee_frame_id, pin.LOCAL).angular
     return J, dJdq
 
-def get_desired(t):
+def get_desired(t, desired_position, desired_rotation):
     omega = np.pi
     offset = 0.5
-    pos = np.array([np.sin(omega*t), 0, np.cos(omega*t)]) * 0.1 + np.array([offset, 0, offset])
-    rot = np.eye(3)
+    pos = np.array([np.sin(omega*t), 0, np.cos(omega*t)]) * 0.1 + desired_position
+    rot = desired_rotation#np.eye(3)
     dpos = np.array([omega*np.cos(omega*t), 0, -omega*np.sin(omega*t)]) * 0.25
     drot = np.array([0, 0, 0])
     dq_des = np.concatenate([dpos, drot])
@@ -79,7 +79,7 @@ def task_space_controller(q: np.ndarray, dq: np.ndarray, t: float, desired: Dict
     desired_se3 = pin.XYZQUATToSE3(desired_pose)
     desired_position = desired_se3.translation
     desired_rotation = desired_se3.rotation
-    desired_position, desired_rotation, dq_des = get_desired(t)
+    desired_position, desired_rotation, dq_des = get_desired(t, desired_position, desired_rotation)
     
     # Get end-effector frame
     ee_frame_id = model.getFrameId("end_effector")

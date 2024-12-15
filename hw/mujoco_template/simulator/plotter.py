@@ -54,6 +54,8 @@ class Plotter():
         velocities = np.array([self.er_vel[i] for i in range(6)]).T
         self.plot_results(positions, self.ee_pos_names, "End_Effector_positions_error", "[m]/[rad]")
         self.plot_results(velocities, self.ee_pos_names, "End_Effector_velocities_error", "[m/s]/[rad/s]")
+        control = np.array([self.control[i] for i in range(self.nq)]).T
+        self.plot_results(control, self.j_names, "Control_applied_to_joints", "[Nm]")
             
 
     def plot_results(self, data, names, title, units):
