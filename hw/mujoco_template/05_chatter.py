@@ -9,10 +9,12 @@ The example uses a simple PD controller to show the effects of parameter changes
 """
 
 import numpy as np
-from simulator import Simulator
+from simulator import Simulator, plotter
 from pathlib import Path
 import os
 from typing import Dict
+import pinocchio as pin
+
 
 def joint_controller(q: np.ndarray, dq: np.ndarray, t: float) -> np.ndarray:
     """Joint space PD controller.
@@ -25,16 +27,38 @@ def joint_controller(q: np.ndarray, dq: np.ndarray, t: float) -> np.ndarray:
     Returns:
         tau: Joint torques command [Nm]
     """
+    pin.computeAllTerms(model, data, q, dq)
+    M = data.M
+    M_inv = np.linalg.inv(M)
+    nle = data.nle
     # Control gains tuned for UR5e
-    kp = np.array([200, 400, 160, 10, 10, 0.1])
-    kd = np.array([20, 40, 40, 2, 2, 0.01])
+    kp = np.ones(6) *100
+    kd = np.ones(6) *20
     
     # Target joint configuration
-    q0 = np.array([-1.4, -1.3, 1., 0, 0, 0])
+    q_des = np.array([-1.4, -1.3, 1., 0, 0, 0])
+    ddq_des = np.array([0, 0, 0, 0, 0, 0])
+    dq_des = np.array([0, 0, 0, 0, 0, 0])
     
-    # PD control law
-    tau = kp * (q0 - q) - kd * dq
+    epsi = 5
+    q_e = q_des - q
+    dq_e = dq_des -dq
+    
+    L = np.diag([30, 30, 30, 10, 10, 10])*10
+    k = 700
+    
+    s = dq_e + L @ q_e
+    
+    v_s = k * s / np.linalg.norm(s)
+    
+    v = ddq_des + L @ dq_e + v_s
+    
+    tau = M @ v + nle
+    
+    ploter.add_data(q, dq, t, tau, q_des , dq_des)
+    
     return tau
+
 
 def main():
     # Create logging directories
@@ -46,7 +70,7 @@ def main():
         enable_task_space=False,  # Using joint space control
         show_viewer=True,
         record_video=True,
-        video_path="logs/videos/08_parameters.mp4",
+        video_path="logs/videos/02_chatter.mp4",
         fps=30,
         width=1920,
         height=1080
@@ -78,7 +102,12 @@ def main():
     
     # Set controller and run simulation
     sim.set_controller(joint_controller)
-    sim.run(time_limit=10.0)
+    sim.run(time_limit=4.0)
 
 if __name__ == "__main__":
+    ploter = plotter.Plotter("2")
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    xml_path = os.path.join(current_dir, "robots/universal_robots_ur5e/ur5e.xml")
+    model = pin.buildModelFromMJCF(xml_path)
+    data = model.createData()
     main() 

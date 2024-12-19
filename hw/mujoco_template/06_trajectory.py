@@ -129,5 +129,5 @@ if __name__ == "__main__":
     xml_path = os.path.join(current_dir, "robots/universal_robots_ur5e/ur5e.xml")
     model = pin.buildModelFromMJCF(xml_path)
     data = model.createData()
-    ploter = plotter.Plotter("6", model)
+    ploter = plotter.Plotter("6")
     main() 
